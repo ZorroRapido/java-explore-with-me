@@ -13,6 +13,7 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://stats-db:5432/ewm-stats-service
       - POSTGRES_USER=kitty
       - POSTGRES_PASSWORD=purrrrrr
+    restart: on-failure
 
   stats-db:
     image: postgres:14-alpine
@@ -33,6 +34,7 @@ services:
       - "8080:8080"
     volumes:
       - /var/log/server
+    restart: on-failure
 #    depends_on:
 #      - ewm-db
 
