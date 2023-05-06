@@ -19,7 +19,7 @@ public class StatsController {
 
     @PostMapping("/hit")
     public ResponseEntity<EndpointHit> saveEndpointHit(@RequestBody EndpointHit endpointHit) {
-        return ResponseEntity.ok().body(statsService.saveEndpointHit(endpointHit));
+        return ResponseEntity.status(201).body(statsService.saveEndpointHit(endpointHit));
     }
 
     @GetMapping("/stats")
