@@ -25,10 +25,9 @@ public class StatsServiceImpl implements StatsService {
     private final EntityManager entityManager;
     private final StatsRepository statsRepository;
 
-    @Transactional
     @Override
     public EndpointHit saveEndpointHit(EndpointHit endpointHit) {
-        endpointHit.setTimestamp(LocalDateTime.now().minusDays(10));
+        endpointHit.setTimestamp(LocalDateTime.now());
         return statsRepository.save(endpointHit);
     }
 
