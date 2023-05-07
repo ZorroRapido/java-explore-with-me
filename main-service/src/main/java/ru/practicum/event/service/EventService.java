@@ -1,6 +1,5 @@
 package ru.practicum.event.service;
 
-import org.springframework.stereotype.Service;
 import ru.practicum.event.dto.EventFullDto;
 import ru.practicum.event.dto.EventRequestStatusUpdateRequest;
 import ru.practicum.event.dto.EventRequestStatusUpdateResult;
@@ -15,7 +14,6 @@ import ru.practicum.request.dto.ParticipationRequestDto;
 import javax.servlet.http.HttpServletRequest;
 import java.util.List;
 
-@Service
 public interface EventService {
 
     List<EventShortDto> getAllEvents(String text, List<Integer> categories, Boolean paid, String rangeStart,

@@ -48,12 +48,6 @@ public class CategoryServiceImpl implements CategoryService {
         return categoryMapper.toCategoryDto(categoryRepository.getReferenceById(catId));
     }
 
-    @Transactional(readOnly = true)
-    @Override
-    public Category getCategoryById(Integer catId) {
-        return catId != null ? categoryRepository.getReferenceById(catId) : null;
-    }
-
     @Transactional
     @Override
     public CategoryDto createCategory(NewCategoryDto newCategoryDto) {
@@ -101,5 +95,10 @@ public class CategoryServiceImpl implements CategoryService {
             log.warn(errorMessage);
             throw new ConditionNotMetException(e.getMessage());
         }
+    }
+
+    @Transactional(readOnly = true)
+    public Category getCategoryById(Integer catId) {
+        return catId != null ? categoryRepository.getReferenceById(catId) : null;
     }
 }

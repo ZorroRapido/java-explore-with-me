@@ -26,6 +26,7 @@ services:
       - POSTGRES_DB=ewm-stats-service
       - POSTGRES_USER=kitty
       - POSTGRES_PASSWORD=purrrrrr
+    restart: on-failure
 
   ewm-service:
     build: ./main-service
@@ -54,3 +55,4 @@ services:
       - POSTGRES_DB=ewm-main-service
       - POSTGRES_USER=kitty
       - POSTGRES_PASSWORD=purrrrrr
+    restart: on-failure
