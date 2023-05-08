@@ -89,13 +89,3 @@ CREATE TABLE IF NOT EXISTS reactions
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
     FOREIGN KEY (event_id) REFERENCES events (id) ON DELETE CASCADE
 );
-
-----
--- DROP TABLE users CASCADE;
--- DROP TABLE categories CASCADE;
--- DROP TABLE compilations CASCADE;
--- DROP TABLE locations CASCADE;
--- DROP TABLE events CASCADE;
--- DROP TABLE compilations_events CASCADE;
--- DROP TABLE requests CASCADE;
-----

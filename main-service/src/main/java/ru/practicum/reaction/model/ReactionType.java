@@ -1,4 +1,4 @@
-package ru.practicum.event.model;
+package ru.practicum.reaction.model;
 
 public enum ReactionType {
     LIKE,

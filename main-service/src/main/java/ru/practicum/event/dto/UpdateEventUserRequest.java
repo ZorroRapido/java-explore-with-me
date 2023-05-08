@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import ru.practicum.event.DateDeserializer;
+import ru.practicum.common.util.DateDeserializer;
 import ru.practicum.event.model.Location;
 import ru.practicum.event.model.StateAction;
 

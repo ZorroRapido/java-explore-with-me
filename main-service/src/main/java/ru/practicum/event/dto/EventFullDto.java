@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import ru.practicum.category.dto.CategoryDto;
-import ru.practicum.event.DateSerializer;
+import ru.practicum.common.util.DateSerializer;
 import ru.practicum.event.model.Location;
 import ru.practicum.event.model.State;
 import ru.practicum.user.dto.UserShortDto;

@@ -6,6 +6,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.practicum.common.service.ConsistencyService;
 import ru.practicum.compilation.CompilationMapper;
 import ru.practicum.compilation.dto.CompilationDto;
 import ru.practicum.compilation.dto.NewCompilationDto;
@@ -17,7 +18,6 @@ import ru.practicum.compilation.repository.CompilationRepository;
 import ru.practicum.event.EventMapper;
 import ru.practicum.event.model.Event;
 import ru.practicum.event.repository.EventRepository;
-import ru.practicum.exception.CompilationNotFoundException;
 
 import javax.persistence.EntityManager;
 import javax.persistence.TypedQuery;
@@ -36,6 +36,7 @@ public class CompilationServiceImpl implements CompilationService {
     private final EntityManager entityManager;
     private final EventMapper eventMapper;
     private final CompilationMapper compilationMapper;
+    private final ConsistencyService consistencyService;
     private final EventRepository eventRepository;
     private final CompilationRepository compilationRepository;
     private final CompilationEventRepository compilationEventRepository;
@@ -69,10 +70,7 @@ public class CompilationServiceImpl implements CompilationService {
     @Transactional(readOnly = true)
     @Override
     public CompilationDto getCompilationById(Integer compId) {
-        if (!compilationRepository.existsById(compId)) {
-            log.warn("Compilation with id={} was not found", compId);
-            throw new CompilationNotFoundException(compId);
-        }
+        consistencyService.checkCompilationExistence(compId);
 
         CompilationDto compilationDto = compilationMapper.toCompilationDto(compilationRepository.getReferenceById(compId));
         var events = compilationEventRepository.findByCompilationId(compilationDto.getId()).stream()
@@ -106,19 +104,14 @@ public class CompilationServiceImpl implements CompilationService {
     @Transactional
     @Override
     public void deleteCompilationById(Integer compId) {
-        if (!compilationRepository.existsById(compId)) {
-            throw new CompilationNotFoundException(compId);
-        }
-
+        consistencyService.checkCompilationExistence(compId);
         compilationRepository.deleteById(compId);
     }
 
     @Transactional
     @Override
     public CompilationDto updateCompilation(UpdateCompilationRequest request, Integer compId) {
-        if (!compilationRepository.existsById(compId)) {
-            throw new CompilationNotFoundException(compId);
-        }
+        consistencyService.checkCompilationExistence(compId);
 
         Compilation compilation = compilationRepository.getReferenceById(compId);
 

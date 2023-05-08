@@ -11,9 +11,9 @@ import ru.practicum.category.dto.CategoryDto;
 import ru.practicum.category.dto.NewCategoryDto;
 import ru.practicum.category.model.Category;
 import ru.practicum.category.repository.CategoryRepository;
+import ru.practicum.common.service.ConsistencyService;
 import ru.practicum.event.repository.EventRepository;
 import ru.practicum.exception.CategoryAlreadyExistsException;
-import ru.practicum.exception.CategoryNotFoundException;
 import ru.practicum.exception.ConditionNotMetException;
 
 import java.util.List;
@@ -27,6 +27,7 @@ public class CategoryServiceImpl implements CategoryService {
     private final CategoryMapper categoryMapper;
     private final EventRepository eventRepository;
     private final CategoryRepository categoryRepository;
+    private final ConsistencyService consistencyService;
 
     @Transactional(readOnly = true)
     @Override
@@ -40,11 +41,7 @@ public class CategoryServiceImpl implements CategoryService {
     @Transactional(readOnly = true)
     @Override
     public CategoryDto getCategoryDtoById(Integer catId) {
-        if (!categoryRepository.existsById(catId)) {
-            log.warn("Category with id={} was not found!", catId);
-            throw new CategoryNotFoundException(catId);
-        }
-
+        consistencyService.checkCategoryExistence(catId);
         return categoryMapper.toCategoryDto(categoryRepository.getReferenceById(catId));
     }
 
@@ -64,10 +61,7 @@ public class CategoryServiceImpl implements CategoryService {
     @Transactional
     @Override
     public void deleteCategory(Integer catId) {
-        if (!categoryRepository.existsById(catId)) {
-            log.warn("Category with id={} was not found!", catId);
-            throw new CategoryNotFoundException(catId);
-        }
+        consistencyService.checkCategoryExistence(catId);
 
         if (!eventRepository.countAllByCategoryId(catId).equals(0)) {
             log.warn("Category with related events can not be deleted! (id = {})", catId);
@@ -80,10 +74,7 @@ public class CategoryServiceImpl implements CategoryService {
     @Transactional
     @Override
     public CategoryDto updateCategory(CategoryDto categoryDto, Integer catId) {
-        if (!categoryRepository.existsById(catId)) {
-            log.warn("Category with id={} was not found!", catId);
-            throw new CategoryNotFoundException(catId);
-        }
+        consistencyService.checkCategoryExistence(catId);
 
         Category category = categoryRepository.getReferenceById(catId);
         category.setName(categoryDto.getName());

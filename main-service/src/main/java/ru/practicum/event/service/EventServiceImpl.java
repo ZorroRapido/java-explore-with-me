@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.practicum.EndpointHit;
 import ru.practicum.StatsClient;
 import ru.practicum.category.repository.CategoryRepository;
+import ru.practicum.common.service.ConsistencyService;
 import ru.practicum.event.EventMapper;
 import ru.practicum.event.dto.EventFullDto;
 import ru.practicum.event.dto.EventRequestStatusUpdateRequest;
@@ -21,23 +22,15 @@ import ru.practicum.event.dto.Sort;
 import ru.practicum.event.dto.UpdateEventAdminRequest;
 import ru.practicum.event.dto.UpdateEventUserRequest;
 import ru.practicum.event.model.Event;
-import ru.practicum.event.model.Reaction;
-import ru.practicum.event.model.ReactionType;
 import ru.practicum.event.model.State;
-import ru.practicum.event.model.StateAction;
 import ru.practicum.event.repository.EventRepository;
-import ru.practicum.event.repository.ReactionRepository;
 import ru.practicum.event.repository.LocationRepository;
 import ru.practicum.exception.ConditionNotMetException;
-import ru.practicum.exception.EventNotFoundException;
-import ru.practicum.exception.ReactionNotFoundException;
-import ru.practicum.exception.UserNotFoundException;
 import ru.practicum.request.RequestMapper;
 import ru.practicum.request.dto.ParticipationRequestDto;
 import ru.practicum.request.model.ParticipationRequest;
 import ru.practicum.request.model.Status;
 import ru.practicum.request.repository.RequestRepository;
-import ru.practicum.user.dto.UserDto;
 import ru.practicum.user.repository.UserRepository;
 
 import javax.persistence.EntityManager;
@@ -60,6 +53,7 @@ import static ru.practicum.event.dto.Sort.VIEWS;
 import static ru.practicum.event.model.State.CANCELED;
 import static ru.practicum.event.model.State.PENDING;
 import static ru.practicum.event.model.State.PUBLISHED;
+import static ru.practicum.event.model.StateAction.CANCEL_REVIEW;
 import static ru.practicum.event.model.StateAction.PUBLISH_EVENT;
 import static ru.practicum.event.model.StateAction.REJECT_EVENT;
 import static ru.practicum.event.model.StateAction.SEND_TO_REVIEW;
@@ -71,12 +65,12 @@ import static ru.practicum.request.model.Status.CONFIRMED;
 public class EventServiceImpl implements EventService {
 
     private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private final ConsistencyService consistencyService;
     private final CategoryRepository categoryRepository;
     private final LocationRepository locationRepository;
     private final RequestRepository requestRepository;
     private final EventRepository eventRepository;
     private final UserRepository userRepository;
-    private final ReactionRepository reactionRepository;
     private final EntityManager entityManager;
     private final RequestMapper requestMapper;
     private final EventMapper eventMapper;
@@ -94,6 +88,8 @@ public class EventServiceImpl implements EventService {
         Root<Event> root = query.from(Event.class);
 
         List<Predicate> predicates = new ArrayList<>();
+
+        // text, categories, paid, rangeStart + rangeEnd, onlyAvailable, state = PUBLISHED
 
         if (text != null) {
             predicates.add(cb.or(cb.like(cb.lower(root.get("annotation")), "%" + text.toLowerCase() + "%"),
@@ -144,7 +140,7 @@ public class EventServiceImpl implements EventService {
     public EventFullDto getEventById(Integer eventId, HttpServletRequest request) {
         statsClient.saveEndpointHit(new EndpointHit("ewm-main-service", request.getRequestURI(), request.getRemoteAddr()));
 
-        checkEventExistence(eventId);
+        consistencyService.checkEventExistence(eventId);
 
         return eventMapper.toEventFullDto(eventRepository.getReferenceById(eventId));
     }
@@ -152,10 +148,7 @@ public class EventServiceImpl implements EventService {
     @Transactional(readOnly = true)
     @Override
     public List<EventShortDto> getUserEvents(Integer userId, Integer from, Integer size) {
-        if (!userRepository.existsById(userId)) {
-            log.warn("User with id={} was not found!", userId);
-            throw new UserNotFoundException(userId);
-        }
+        consistencyService.checkUserExistence(userId);
 
         PageRequest pageRequest = PageRequest.of(from / size, size);
 
@@ -167,7 +160,7 @@ public class EventServiceImpl implements EventService {
     @Transactional
     @Override
     public EventFullDto createEvent(NewEventDto newEventDto, Integer userId) {
-        checkUserExistence(userId);
+        consistencyService.checkUserExistence(userId);
 
         if (newEventDto.getEventDate().isBefore(LocalDateTime.now().plusHours(2))) {
             log.warn("Conditions are not met while creating new event! field: eventDate, value={}", newEventDto.getEventDate());
@@ -182,9 +175,9 @@ public class EventServiceImpl implements EventService {
         event.setCreatedOn(LocalDateTime.now());
         event.setInitiator(userRepository.getReferenceById(userId));
         event.setPaid(newEventDto.getPaid() == null ? null : newEventDto.getPaid());
+        event.setState(State.PENDING);
         event.setViews(0);
         event.setRating(0);
-        event.setState(State.PENDING);
 
         return eventMapper.toEventFullDto(eventRepository.save(event));
     }
@@ -192,8 +185,8 @@ public class EventServiceImpl implements EventService {
     @Transactional(readOnly = true)
     @Override
     public EventFullDto getUserEventById(Integer userId, Integer eventId) {
-        checkUserExistence(userId);
-        checkEventExistence(eventId);
+        consistencyService.checkUserExistence(userId);
+        consistencyService.checkEventExistence(eventId);
 
         return eventMapper.toEventFullDto(eventRepository.getReferenceById(eventId));
     }
@@ -201,8 +194,8 @@ public class EventServiceImpl implements EventService {
     @Transactional
     @Override
     public EventFullDto updateEvent(UpdateEventUserRequest updateEventUserRequest, Integer userId, Integer eventId) {
-        checkUserExistence(userId);
-        checkEventExistence(eventId);
+        consistencyService.checkUserExistence(userId);
+        consistencyService.checkEventExistence(eventId);
 
         Event event = eventRepository.getReferenceById(eventId);
 
@@ -257,7 +250,7 @@ public class EventServiceImpl implements EventService {
             event.setState(State.REJECTED);
         } else if (SEND_TO_REVIEW.equals(updateEventUserRequest.getStateAction())) {
             event.setState(State.PENDING);
-        } else if (StateAction.CANCEL_REVIEW.equals(updateEventUserRequest.getStateAction())) {
+        } else if (CANCEL_REVIEW.equals(updateEventUserRequest.getStateAction())) {
             event.setState(State.CANCELED);
         }
 
@@ -271,8 +264,8 @@ public class EventServiceImpl implements EventService {
     @Transactional(readOnly = true)
     @Override
     public List<ParticipationRequestDto> getRequests(Integer userId, Integer eventId) {
-        checkUserExistence(userId);
-        checkEventExistence(eventId);
+        consistencyService.checkUserExistence(userId);
+        consistencyService.checkEventExistence(eventId);
 
         return requestRepository.findAllByEvent(eventRepository.getReferenceById(eventId)).stream()
                 .map(requestMapper::toParticipationRequestDto)
@@ -283,8 +276,8 @@ public class EventServiceImpl implements EventService {
     @Override
     public EventRequestStatusUpdateResult updateRequestStatus(EventRequestStatusUpdateRequest statusUpdateRequest,
                                                               Integer userId, Integer eventId) {
-        checkUserExistence(userId);
-        checkEventExistence(eventId);
+        consistencyService.checkUserExistence(userId);
+        consistencyService.checkEventExistence(eventId);
 
         Event event = eventRepository.getReferenceById(eventId);
         List<ParticipationRequest> confirmedRequests = new ArrayList<>();
@@ -321,7 +314,7 @@ public class EventServiceImpl implements EventService {
                 if (event.getConfirmedRequests() < event.getParticipantLimit()) {
                     if (!Status.PENDING.equals(request.getStatus())) {
                         log.warn("Only requests with PENDING status can be confirmed!");
-                        throw new ConditionNotMetException("Request must have status PENDING", HttpStatus.BAD_REQUEST);
+                        throw new ConditionNotMetException("Request must have PENDING status", HttpStatus.BAD_REQUEST);
                     }
 
                     event.setConfirmedRequests(event.getConfirmedRequests() + 1);
@@ -390,7 +383,8 @@ public class EventServiceImpl implements EventService {
     @Transactional
     @Override
     public EventFullDto updateEvent(UpdateEventAdminRequest updateEventAdminRequest, Integer eventId) {
-        checkEventExistence(eventId);
+        consistencyService.checkEventExistence(eventId);
+
         Event event = eventRepository.getReferenceById(eventId);
 
         if (updateEventAdminRequest.getEventDate() != null) {
@@ -453,95 +447,5 @@ public class EventServiceImpl implements EventService {
         }
 
         return eventMapper.toEventFullDto(eventRepository.save(event));
-    }
-
-    @Transactional
-    @Override
-    public void addReaction(Integer userId, Integer eventId, ReactionType reactionType) {
-        checkUserExistence(userId);
-        checkEventExistence(eventId);
-
-        if (reactionRepository.existsByUserIdAndEventId(userId, eventId)) {
-            Reaction existingReaction = reactionRepository.findByUserIdAndEventId(userId, eventId);
-
-            if (existingReaction.getReactionType().equals(reactionType)) {
-                log.warn("User with id={} has already added {} for event with id={}!", userId, existingReaction.getReactionType(),
-                        eventId);
-                throw new ConditionNotMetException(String.format("User has already added %s for this event!",
-                        existingReaction.getReactionType()));
-            } else {
-                log.warn("User with id={} has already added another reaction ({}) for event with id={}!", userId,
-                        existingReaction.getReactionType(), eventId);
-                throw new ConditionNotMetException(String.format("User has already added another reaction (%s) for " +
-                        "this event!", existingReaction.getReactionType()));
-            }
-        }
-
-        UserDto userDto = userRepository.getReferenceById(userId);
-        Event event = eventRepository.getReferenceById(eventId);
-        ParticipationRequest request = requestRepository.findOneByRequesterAndEvent(userDto, event);
-
-        if (request != null && Status.CONFIRMED.equals(request.getStatus())
-                && event.getEventDate().isBefore(LocalDateTime.now())) {
-            Reaction reaction = new Reaction(userId, eventId, reactionType);
-            reactionRepository.save(reaction);
-
-            if (ReactionType.LIKE.equals(reactionType)) {
-                event.setRating(event.getRating() + 1);
-                userDto.setRating(userDto.getRating() + 1);
-            } else if (ReactionType.DISLIKE.equals(reactionType)) {
-                event.setRating(event.getRating() - 1);
-                userDto.setRating(userDto.getRating() - 1);
-            }
-
-            eventRepository.save(event);
-            userRepository.save(userDto);
-        } else {
-            log.warn("Users can not add reactions about events that they haven't visited! (user_id = {}, event_id={})",
-                    userId, eventId);
-            throw new ConditionNotMetException("Only users who have visited the event can add reactions about it!");
-        }
-    }
-
-    @Transactional
-    @Override
-    public void removeReaction(Integer userId, Integer eventId, ReactionType reactionType) {
-        checkUserExistence(userId);
-        checkEventExistence(eventId);
-
-        UserDto userDto = userRepository.getReferenceById(userId);
-        Event event = eventRepository.getReferenceById(eventId);
-        Reaction existingReaction = reactionRepository.findByUserIdAndEventIdAndReactionType(userId, eventId,
-                reactionType);
-
-        if (existingReaction != null) {
-            reactionRepository.deleteById(existingReaction.getId());
-
-            if (ReactionType.LIKE.equals(reactionType)) {
-                userDto.setRating(userDto.getRating() - 1);
-                event.setRating(event.getRating() - 1);
-            } else if (ReactionType.DISLIKE.equals(reactionType)) {
-                userDto.setRating(userDto.getRating() + 1);
-                event.setRating(event.getRating() + 1);
-            }
-        } else {
-            log.warn("Reaction with type '{}' was not found for user with id={} and event with id={}!", reactionType,
-                    userId, eventId);
-            throw new ReactionNotFoundException(userId, eventId, reactionType);
-        }
-    }
-
-    private void checkUserExistence(Integer userId) {
-        if (!userRepository.existsById(userId)) {
-            log.warn("User with id={} was not found!", userId);
-            throw new UserNotFoundException(userId);
-        }
-    }
-
-    private void checkEventExistence(Integer eventId) {
-        if (!eventRepository.existsById(eventId)) {
-            log.warn("Event with id={} was not found!", eventId);
-            throw new EventNotFoundException(eventId);
-        }
     }
 }

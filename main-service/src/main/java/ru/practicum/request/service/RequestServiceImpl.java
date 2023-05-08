@@ -5,13 +5,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.practicum.common.service.ConsistencyService;
 import ru.practicum.event.model.Event;
 import ru.practicum.event.repository.EventRepository;
 import ru.practicum.exception.ConditionNotMetException;
-import ru.practicum.exception.EventNotFoundException;
 import ru.practicum.exception.RequestAlreadyExistsException;
-import ru.practicum.exception.RequestNotFoundException;
-import ru.practicum.exception.UserNotFoundException;
 import ru.practicum.request.RequestMapper;
 import ru.practicum.request.dto.ParticipationRequestDto;
 import ru.practicum.request.model.ParticipationRequest;
@@ -34,11 +32,12 @@ public class RequestServiceImpl implements RequestService {
     private final UserRepository userRepository;
     private final EventRepository eventRepository;
     private final RequestRepository requestRepository;
+    private final ConsistencyService consistencyService;
 
     @Transactional(readOnly = true)
     @Override
     public List<ParticipationRequestDto> getUserRequests(Integer userId) {
-        checkUserExistence(userId);
+        consistencyService.checkUserExistence(userId);
 
         return requestRepository.findAllByRequester(userRepository.getReferenceById(userId)).stream()
                 .map(requestMapper::toParticipationRequestDto)
@@ -48,8 +47,8 @@ public class RequestServiceImpl implements RequestService {
     @Transactional
     @Override
     public ParticipationRequestDto createRequest(Integer userId, Integer eventId) {
-        checkUserExistence(userId);
-        checkEventExistence(eventId);
+        consistencyService.checkUserExistence(userId);
+        consistencyService.checkEventExistence(eventId);
 
         Event event = eventRepository.getReferenceById(eventId);
         ParticipationRequest participationRequest = new ParticipationRequest(event,
@@ -99,32 +98,11 @@ public class RequestServiceImpl implements RequestService {
     @Transactional
     @Override
     public ParticipationRequestDto cancelRequest(Integer userId, Integer requestId) {
-        checkRequestExistence(requestId);
+        consistencyService.checkRequestExistence(requestId);
 
         ParticipationRequest request = requestRepository.getReferenceById(requestId);
         request.setStatus(Status.CANCELED);
 
         return requestMapper.toParticipationRequestDto(requestRepository.save(request));
-    }
-
-    private void checkUserExistence(Integer userId) {
-        if (!userRepository.existsById(userId)) {
-            log.warn("User with id={} was not found!", userId);
-            throw new UserNotFoundException(userId);
-        }
-    }
-
-    private void checkEventExistence(Integer eventId) {
-        if (!eventRepository.existsById(eventId)) {
-            log.warn("Event with id={} was not found!", eventId);
-            throw new EventNotFoundException(eventId);
-        }
-    }
-
-    private void checkRequestExistence(Integer requestId) {
-        if (!requestRepository.existsById(requestId)) {
-            log.warn("Request with id={} was not found!", requestId);
-            throw new RequestNotFoundException(requestId);
-        }
     }
 }

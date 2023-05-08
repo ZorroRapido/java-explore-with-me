@@ -1,9 +1,9 @@
-package ru.practicum.event.repository;
+package ru.practicum.reaction.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
-import ru.practicum.event.model.Reaction;
-import ru.practicum.event.model.ReactionType;
+import ru.practicum.reaction.model.Reaction;
+import ru.practicum.reaction.model.ReactionType;
 
 @Repository
 public interface ReactionRepository extends JpaRepository<Reaction, Integer> {

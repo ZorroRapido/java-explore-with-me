@@ -1,6 +1,6 @@
 package ru.practicum.exception;
 
-import ru.practicum.event.model.ReactionType;
+import ru.practicum.reaction.model.ReactionType;
 
 public class ReactionNotFoundException extends RuntimeException {
 

@@ -1,4 +1,4 @@
-package ru.practicum.event;
+package ru.practicum.common.util;
 
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationContext;
