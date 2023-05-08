@@ -15,5 +15,7 @@ public interface RequestRepository extends JpaRepository<ParticipationRequest, I
 
     List<ParticipationRequest> findAllByRequesterAndEvent(UserDto userDto, Event event);
 
+    ParticipationRequest findOneByRequesterAndEvent(UserDto userDto, Event event);
+
     List<ParticipationRequest> findAllByEvent(Event event);
 }

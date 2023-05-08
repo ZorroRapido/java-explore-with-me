@@ -21,18 +21,23 @@ import ru.practicum.event.dto.Sort;
 import ru.practicum.event.dto.UpdateEventAdminRequest;
 import ru.practicum.event.dto.UpdateEventUserRequest;
 import ru.practicum.event.model.Event;
+import ru.practicum.event.model.Reaction;
+import ru.practicum.event.model.ReactionType;
 import ru.practicum.event.model.State;
 import ru.practicum.event.model.StateAction;
 import ru.practicum.event.repository.EventRepository;
+import ru.practicum.event.repository.ReactionRepository;
 import ru.practicum.event.repository.LocationRepository;
 import ru.practicum.exception.ConditionNotMetException;
 import ru.practicum.exception.EventNotFoundException;
+import ru.practicum.exception.ReactionNotFoundException;
 import ru.practicum.exception.UserNotFoundException;
 import ru.practicum.request.RequestMapper;
 import ru.practicum.request.dto.ParticipationRequestDto;
 import ru.practicum.request.model.ParticipationRequest;
 import ru.practicum.request.model.Status;
 import ru.practicum.request.repository.RequestRepository;
+import ru.practicum.user.dto.UserDto;
 import ru.practicum.user.repository.UserRepository;
 
 import javax.persistence.EntityManager;
@@ -50,6 +55,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static ru.practicum.event.dto.Sort.EVENT_DATE;
+import static ru.practicum.event.dto.Sort.EVENT_RATING;
 import static ru.practicum.event.dto.Sort.VIEWS;
 import static ru.practicum.event.model.State.CANCELED;
 import static ru.practicum.event.model.State.PENDING;
@@ -70,6 +76,7 @@ public class EventServiceImpl implements EventService {
     private final RequestRepository requestRepository;
     private final EventRepository eventRepository;
     private final UserRepository userRepository;
+    private final ReactionRepository reactionRepository;
     private final EntityManager entityManager;
     private final RequestMapper requestMapper;
     private final EventMapper eventMapper;
@@ -118,6 +125,8 @@ public class EventServiceImpl implements EventService {
             query.select(root).where(predicates.toArray(new Predicate[]{})).orderBy(cb.desc(root.get("eventDate")));
         } else if (VIEWS.equals(sort)) {
             query.select(root).where(predicates.toArray(new Predicate[]{})).orderBy(cb.desc(root.get("views")));
+        } else if (EVENT_RATING.equals(sort)) {
+            query.select(root).where(predicates.toArray(new Predicate[]{})).orderBy(cb.desc(root.get("rating")));
         }
 
         PageRequest pageRequest = PageRequest.of(from / size, size);
@@ -174,6 +183,7 @@ public class EventServiceImpl implements EventService {
         event.setInitiator(userRepository.getReferenceById(userId));
         event.setPaid(newEventDto.getPaid() == null ? null : newEventDto.getPaid());
         event.setViews(0);
+        event.setRating(0);
         event.setState(State.PENDING);
 
         return eventMapper.toEventFullDto(eventRepository.save(event));
@@ -443,6 +453,82 @@ public class EventServiceImpl implements EventService {
         }
 
         return eventMapper.toEventFullDto(eventRepository.save(event));
+    }
+
+    @Transactional
+    @Override
+    public void addReaction(Integer userId, Integer eventId, ReactionType reactionType) {
+        checkUserExistence(userId);
+        checkEventExistence(eventId);
+
+        if (reactionRepository.existsByUserIdAndEventId(userId, eventId)) {
+            Reaction existingReaction = reactionRepository.findByUserIdAndEventId(userId, eventId);
+
+            if (existingReaction.getReactionType().equals(reactionType)) {
+                log.warn("User with id={} has already added {} for event with id={}!", userId, existingReaction.getReactionType(),
+                        eventId);
+                throw new ConditionNotMetException(String.format("User has already added %s for this event!",
+                        existingReaction.getReactionType()));
+            } else {
+                log.warn("User with id={} has already added another reaction ({}) for event with id={}!", userId,
+                        existingReaction.getReactionType(), eventId);
+                throw new ConditionNotMetException(String.format("User has already added another reaction (%s) for " +
+                        "this event!", existingReaction.getReactionType()));
+            }
+        }
+
+        UserDto userDto = userRepository.getReferenceById(userId);
+        Event event = eventRepository.getReferenceById(eventId);
+        ParticipationRequest request = requestRepository.findOneByRequesterAndEvent(userDto, event);
+
+        if (request != null && Status.CONFIRMED.equals(request.getStatus())
+                && event.getEventDate().isBefore(LocalDateTime.now())) {
+            Reaction reaction = new Reaction(userId, eventId, reactionType);
+            reactionRepository.save(reaction);
+
+            if (ReactionType.LIKE.equals(reactionType)) {
+                event.setRating(event.getRating() + 1);
+                userDto.setRating(userDto.getRating() + 1);
+            } else if (ReactionType.DISLIKE.equals(reactionType)) {
+                event.setRating(event.getRating() - 1);
+                userDto.setRating(userDto.getRating() - 1);
+            }
+
+            eventRepository.save(event);
+            userRepository.save(userDto);
+        } else {
+            log.warn("Users can not add reactions about events that they haven't visited! (user_id = {}, event_id={})",
+                    userId, eventId);
+            throw new ConditionNotMetException("Only users who have visited the event can add reactions about it!");
+        }
+    }
+
+    @Transactional
+    @Override
+    public void removeReaction(Integer userId, Integer eventId, ReactionType reactionType) {
+        checkUserExistence(userId);
+        checkEventExistence(eventId);
+
+        UserDto userDto = userRepository.getReferenceById(userId);
+        Event event = eventRepository.getReferenceById(eventId);
+        Reaction existingReaction = reactionRepository.findByUserIdAndEventIdAndReactionType(userId, eventId,
+                reactionType);
+
+        if (existingReaction != null) {
+            reactionRepository.deleteById(existingReaction.getId());
+
+            if (ReactionType.LIKE.equals(reactionType)) {
+                userDto.setRating(userDto.getRating() - 1);
+                event.setRating(event.getRating() - 1);
+            } else if (ReactionType.DISLIKE.equals(reactionType)) {
+                userDto.setRating(userDto.getRating() + 1);
+                event.setRating(event.getRating() + 1);
+            }
+        } else {
+            log.warn("Reaction with type '{}' was not found for user with id={} and event with id={}!", reactionType,
+                    userId, eventId);
+            throw new ReactionNotFoundException(userId, eventId, reactionType);
+        }
     }
 
     private void checkUserExistence(Integer userId) {

@@ -8,6 +8,7 @@ import ru.practicum.event.dto.NewEventDto;
 import ru.practicum.event.dto.Sort;
 import ru.practicum.event.dto.UpdateEventAdminRequest;
 import ru.practicum.event.dto.UpdateEventUserRequest;
+import ru.practicum.event.model.ReactionType;
 import ru.practicum.event.model.State;
 import ru.practicum.request.dto.ParticipationRequestDto;
 
@@ -39,4 +40,8 @@ public interface EventService {
                                       String rangeStart, String rangeEnd, Integer from, Integer size);
 
     EventFullDto updateEvent(UpdateEventAdminRequest updateEventAdminRequest, Integer eventId);
+
+    void addReaction(Integer userId, Integer eventId, ReactionType reactionType);
+
+    void removeReaction(Integer userId, Integer eventId, ReactionType reactionType);
 }

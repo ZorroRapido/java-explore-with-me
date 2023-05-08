@@ -3,16 +3,19 @@ package ru.practicum.event.controller;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import ru.practicum.event.dto.EventRequestStatusUpdateRequest;
 import ru.practicum.event.dto.EventRequestStatusUpdateResult;
+import ru.practicum.event.model.ReactionType;
 import ru.practicum.request.dto.ParticipationRequestDto;
 import ru.practicum.event.dto.UpdateEventUserRequest;
 import ru.practicum.event.dto.EventFullDto;
@@ -79,5 +82,33 @@ public class EventPrivateController {
         log.info("Получен запрос на изменение статуса заявок на участие в событии с id={}, добавленном пользователем " +
                 "с id={}: statusUpdateRequest={}", eventId, userId, statusUpdateRequest);
         return ResponseEntity.ok().body(eventService.updateRequestStatus(statusUpdateRequest, userId, eventId));
+    }
+
+    @PutMapping("/{eventId}/like")
+    public ResponseEntity<Void> addLike(@PathVariable("userId") Integer userId,
+                                        @PathVariable("eventId") Integer eventId) {
+        eventService.addReaction(userId, eventId, ReactionType.LIKE);
+        return ResponseEntity.ok().build();
+    }
+
+    @PutMapping("/{eventId}/dislike")
+    public ResponseEntity<Void> addDislike(@PathVariable("userId") Integer userId,
+                                           @PathVariable("eventId") Integer eventId) {
+        eventService.addReaction(userId, eventId, ReactionType.DISLIKE);
+        return ResponseEntity.ok().build();
+    }
+
+    @DeleteMapping("/{eventId}/like")
+    public ResponseEntity<Void> removeLike(@PathVariable("userId") Integer userId,
+                                           @PathVariable("eventId") Integer eventId) {
+        eventService.removeReaction(userId, eventId, ReactionType.LIKE);
+        return ResponseEntity.status(204).build();
+    }
+
+    @DeleteMapping("/{eventId}/dislike")
+    public ResponseEntity<Void> removeDislike(@PathVariable("userId") Integer userId,
+                                              @PathVariable("eventId") Integer eventId) {
+        eventService.removeReaction(userId, eventId, ReactionType.DISLIKE);
+        return ResponseEntity.status(204).build();
     }
 }

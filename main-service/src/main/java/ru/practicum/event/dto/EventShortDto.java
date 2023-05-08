@@ -28,4 +28,6 @@ public class EventShortDto {
     private String title;
 
     private Integer views;
+
+    private Integer rating;
 }
